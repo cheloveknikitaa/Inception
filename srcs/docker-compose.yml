@@ -1,0 +1,160 @@
+version: '3'
+
+services:
+# Nginx
+  nginx:
+    build: ./requirements/nginx
+    image: caugusta-nginx:${version:-latest}
+    container_name: nginx
+    env_file: # говорим compose, что у нас будет специальный
+      - .env  # файл для переменной окружения
+    hostname: localhost
+    volumes:
+      - wp:/var/www/html/wordpress
+    networks:
+      - inception_net
+    depends_on:
+      - wordpress
+    ports:
+      - "443:443"
+    restart: always
+# MariaDB
+  mariadb:
+    build: ./requirements/mariadb
+    image: caugusta-mariadb:${version:-latest}
+    container_name: mariadb
+    env_file:
+      - .env
+    hostname: localhost
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - inception_net
+    restart: always
+# WordPress
+  wordpress:
+    build: ./requirements/wordpress
+    image: caugusta-wordpress:${version:-latest}
+    container_name: wordpress
+    env_file:
+      - .env
+    hostname: wordpress
+    volumes:
+      - wp:/var/www/html/wordpress
+    networks:
+      - inception_net
+    depends_on:
+      - mariadb
+    restart: always
+# Redis
+  redis:
+    build: ./requirements/bonus/redis
+    image: caugusta-redis:${version:-latest}
+    container_name: redis
+    env_file:
+      - .env
+    hostname: redis
+    networks:
+      - inception_net
+    depends_on:
+      - mariadb
+    profiles:
+      - bonus
+    restart: always
+# proFTPd
+  proftpd:
+    build:
+      context: ./requirements/bonus/proftpd/
+    image:  caugusta-proftpd:${version:-latest}
+    container_name: proftpd
+    env_file:
+      - .env
+    hostname: proftpd
+    volumes:
+      - wp:/var/www/html/wordpress
+    networks:
+      - inception_net
+    ports:
+      - "10020:20"
+      - "10021:21"
+      - "60000-60030:60000-60030" # диапазон должен соответствовать диапазону пассивных портов в файле настроек
+    depends_on:
+      - wordpress
+    profiles:
+      - bonus
+    restart: always
+# WebSite
+  website:
+    build: ./requirements/bonus/website
+    image: caugusta-website:${version:-latest}
+    container_name: website
+    env_file:
+      - .env
+    hostname: website
+    networks:
+      - inception_net
+    depends_on:
+      - nginx
+    ports:
+      - "8081:443"
+    profiles:
+      - bonus
+    restart: always
+# Adminer
+  adminer:
+    build: ./requirements/bonus/adminer
+    image: caugusta-adminer:${version:-latest}
+    container_name: adminer
+    env_file:
+      - .env
+    hostname: adminer
+    networks:
+      - inception_net
+    depends_on:
+      - wordpress
+    ports:
+      - "8080:8080"
+    profiles:
+      - bonus
+    restart: always
+# Portainer
+  portainer:
+    image: portainer/portainer-ce:2.16.1
+    container_name: portainer
+    ports:
+      - "8000:8000"
+      - "9443:9443"
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - pt:/data
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - bonus
+    restart: always
+
+volumes:
+  db:
+    driver: local
+    driver_opts: # описывает необязательные значения драйвера для данной сети
+      type: none # тип сервиса контейнера
+      # type: the mount type volume, bind, tmpfs or npipe
+      o: bind # устанавливает специфические опции для драйвера
+      device: /home/${USER}/data/db # куда сохраняются данные для каждого сервиса
+  wp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/${USER}/data/wp # ${USER} переменная среды окружения локального хоста
+  pt:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/${USER}/data/pt # ${USER} переменная среды окружения локального хоста
+
+networks:
+  inception_net: # название сети
+    driver: bridge # тип сети
