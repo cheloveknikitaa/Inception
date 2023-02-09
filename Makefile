@@ -6,12 +6,12 @@ DATA_DIR	=	~/data
 
 all: add_dns_to_host
 	@echo -e "\nЗапуск конфигурации ${NAME}..."
-	@bash srcs/requirements/tools/mk_dir.sh 2>/dev/null || echo "ERROR: add_dns_to_hosts"
 	@make build
 	@make up
 
-bonus:
-	@docker-compose -f  srcs/docker-compose.yml --profile bonus --build up
+bonus: add_dns_to_host
+	@docker-compose -f  srcs/docker-compose.yml --profile bonus build
+	@docker-compose -f  srcs/docker-compose.yml --profile bonus up -d
 
 build:
 	@echo "Сборка конфигурации ${NAME}..."
@@ -137,7 +137,7 @@ re:	down
 add_dns_to_host:
 	@echo "Задать доменное имя локальному сайту: ${NICKNAME}.42.fr"
 	@bash srcs/requirements/tools/add_dns_to_hosts.sh ${NICKNAME} 2>/dev/null && echo "SUCCESS: add_dns_to_hosts" || echo "ERROR: add_dns_to_hosts"
-	@#echo -n "127.0.0.1 ${NICKNAME}.42.fr" | sudo tee -a /etc/hosts
+	@bash srcs/requirements/tools/mk_dir.sh 2>/dev/null || echo "ERROR: add_dns_to_hosts"
 
 .PHONY	: all bonus build up down re clean fclean add_dns_to_host
 
